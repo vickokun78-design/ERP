@@ -1,0 +1,16 @@
+# Node.js
+node_modules/
+
+# npm
+package-lock.json
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Environment variables
+.env
+
+# Development tools
+.vscode/
+.idea/
