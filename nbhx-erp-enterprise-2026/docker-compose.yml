@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # INFRAESTRUCTURA BASE
+  # ==========================================
+  
+  postgres:
+    image: postgres:16-alpine
+    container_name: nbhx-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-nbhx_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-NbhxSecure2026!}
+      POSTGRES_DB: ${DB_NAME:-nbhx_erp}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - nbhx-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-nbhx_admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: nbhx-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-Redis2026!}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - nbhx-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # API GATEWAY (NestJS)
+  # ==========================================
+
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: nbhx-api-gateway
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 4000
+      DATABASE_URL: postgresql://${DB_USER:-nbhx_admin}:${DB_PASSWORD:-NbhxSecure2026!}@postgres:5432/${DB_NAME:-nbhx_erp}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-Redis2026!}@redis:6379
+      JWT_SECRET: ${JWT_SECRET:-nbhx-super-secret-key-2026}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - nbhx-network
+    volumes:
+      - ./backend/api-gateway:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run start:dev"
+
+  # ==========================================
+  # FRONTEND (Next.js)
+  # ==========================================
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nbhx-frontend
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_GRAPHQL_URL: http://localhost:4000/graphql
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    networks:
+      - nbhx-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: sh -c "npm install && npm run dev"
+
+  # ==========================================
+  # HERRAMIENTAS DE MONITOREO
+  # ==========================================
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: nbhx-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@nbhx.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin2026}
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - nbhx-network
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  # ==========================================
+  # REVERSE PROXY (Nginx) - Opcional
+  # ==========================================
+
+  nginx:
+    image: nginx:alpine
+    container_name: nbhx-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - api-gateway
+    networks:
+      - nbhx-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  pgadmin_data:
+
+networks:
+  nbhx-network:
+    driver: bridge

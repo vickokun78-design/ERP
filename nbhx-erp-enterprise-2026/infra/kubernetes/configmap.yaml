@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nbhx-erp-config
+  namespace: nbhx-erp
+data:
+  NODE_ENV: "production"
+  API_PREFIX: "api"
+  API_VERSION: "v1"
+  LOG_LEVEL: "info"
+  AUDIT_LOG_ENABLED: "true"
+  MFA_ENABLED: "true"
+  ISO_VERSION: "9001:2026"
+  IOT_SIMULATION: "false"

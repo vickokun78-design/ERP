@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nbhx-erp
+  labels:
+    name: nbhx-erp
+    environment: production
+    version: "2026.1.0"
